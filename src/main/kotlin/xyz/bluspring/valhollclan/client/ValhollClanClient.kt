@@ -4,14 +4,14 @@ import com.google.gson.JsonParser
 import com.mojang.authlib.GameProfile
 import com.mojang.serialization.JsonOps
 import net.fabricmc.api.ClientModInitializer
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientWorldEvents
+import net.fabricmc.fabric.api.client.command.v2.ClientCommands
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLevelEvents
 import net.minecraft.ChatFormatting
 import net.minecraft.network.chat.Component
 import net.minecraft.network.chat.ComponentUtils
 import net.minecraft.network.chat.FontDescription
-import net.minecraft.resources.ResourceLocation
+import net.minecraft.resources.Identifier
 import net.minecraft.world.entity.player.Player
 import org.slf4j.LoggerFactory
 import xyz.bluspring.valhollclan.client.clan.ClanPlayerInfo
@@ -23,25 +23,25 @@ class ValhollClanClient : ClientModInitializer {
     override fun onInitializeClient() {
         loadInfos()
 
-        ClientWorldEvents.AFTER_CLIENT_WORLD_CHANGE.register { client, world ->
+        ClientLevelEvents.AFTER_CLIENT_LEVEL_CHANGE.register { client, world ->
             if (world == null)
                 return@register
 
             val clanPlayers = world.players().filter { players.any { p -> p.uuid == it.uuid } }
 
             if (clanPlayers.isNotEmpty()) {
-                client.gui.chat.addMessage(getAvailable(clanPlayers))
+                client.gui.chat.addClientSystemMessage(getAvailable(clanPlayers))
             }
         }
 
         ClientCommandRegistrationCallback.EVENT.register { dispatcher, registryAccess ->
             dispatcher.register(
-                ClientCommandManager.literal("valholl")
+                ClientCommands.literal("valholl")
                     .then(
-                        ClientCommandManager.literal("roles")
+                        ClientCommands.literal("roles")
                             .executes { ctx ->
                                 for (role in ClanRole.entries) {
-                                    ctx.source.player.displayClientMessage(Component.empty()
+                                    ctx.source.player.sendSystemMessage(Component.empty()
                                         .append(
                                             Component.literal("${role.iconChar}")
                                                 .withStyle {
@@ -50,24 +50,24 @@ class ValhollClanClient : ClientModInitializer {
                                         )
                                         .append(" - ")
                                         .append(Component.translatable("valholl.roles.${role.serializedName}")
-                                    ), false)
+                                    ))
                                 }
 
                                 1
                             }
                     )
                     .then(
-                        ClientCommandManager.literal("forcerefresh")
+                        ClientCommands.literal("forcerefresh")
                             .executes {
                                 loadInfos()
                                 1
                             }
                     )
                     .then(
-                        ClientCommandManager.literal("list")
+                        ClientCommands.literal("list")
                             .executes {
-                                val clanPlayers = it.source.world.players().filter { players.any { p -> p.uuid == it.uuid } }
-                                it.source.player.displayClientMessage(getAvailable(clanPlayers), false)
+                                val clanPlayers = it.source.level.players().filter { players.any { p -> p.uuid == it.uuid } }
+                                it.source.player.sendSystemMessage(getAvailable(clanPlayers))
                                 1
                             }
                     )
@@ -96,7 +96,7 @@ class ValhollClanClient : ClientModInitializer {
     companion object {
         private val logger = LoggerFactory.getLogger("Valhöll Clan")
         const val WEB_PATH = "https://raw.githubusercontent.com/BluSpring/ValhollClan/refs/heads/master/src/main/resources"
-        val ROLES_FONT = ResourceLocation.fromNamespaceAndPath("valholl_clan", "roles")
+        val ROLES_FONT = Identifier.fromNamespaceAndPath("valholl_clan", "roles")
 
         val players = mutableListOf<ClanPlayerInfo>()
 
